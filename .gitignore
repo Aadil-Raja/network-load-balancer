@@ -1,0 +1,35 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# Log files
+*.log
+
+# macOS system files
+.DS_Store
+
+# Windows system files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# VS Code settings
+.vscode/
+
+# PyCharm
+.idea/
+
+# Flask/Local runtime files
+instance/
+*.sqlite3
+
+# Nginx/HAProxy binaries or runtime dumps (if any)
+nginx/logs/
+haproxy/logs/

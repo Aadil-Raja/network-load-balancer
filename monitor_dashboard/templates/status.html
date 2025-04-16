@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Server Status Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 30px;
+        }
+        h2 {
+            color: #333;
+        }
+        .status-box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 350px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        li {
+            padding: 10px 0;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h2>🖥️ Load Balancer: Server Health Status</h2>
+    <div class="status-box">
+        <ul>
+            {% for name, stat in status.items() %}
+                <li><strong>{{ name }}</strong>: {{ stat }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>
