@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Load Balancer Simulator</title>
+  <style>
+    body { font-family: Arial; margin: 40px; }
+    table, th, td { border: 1px solid black; border-collapse: collapse; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h2>Simulate Load Balancer Requests</h2>
+  <label>Number of Requests: </label>
+  <input type="number" id="count" value="10" min="1" />
+  <button onclick="startSimulation()">Send Requests</button>
+
+  <h3>Results</h3>
+  <table id="result-table">
+    <tr><th>Request #</th><th>Response</th></tr>
+  </table>
+
+  <script>
+    function startSimulation() {
+      const count = document.getElementById("count").value;
+
+      fetch('/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count })
+      })
+      .then(res => res.json())
+      .then(data => {
+        const table = document.getElementById("result-table");
+        table.innerHTML = "<tr><th>Request #</th><th>Response</th></tr>";
+        data.results.forEach(row => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td>${row.request}</td><td>${row.response}</td>`;
+          table.appendChild(tr);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
