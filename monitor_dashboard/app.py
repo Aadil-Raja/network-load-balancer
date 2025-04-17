@@ -2,7 +2,9 @@ from flask import Flask, render_template, request, jsonify
 import requests
 import subprocess
 import random
-
+import time
+from threading import Thread
+from collections import defaultdict
 
 app = Flask(__name__)
 
@@ -21,15 +23,15 @@ def dashboard():
     status = {}
     for name, url in servers.items():
         try:
-            r = requests.get(url, timeout=1)
-            if r.status_code == 200:
-                status[name] = "🟢 Online"
+            r = requests.get(url, timeout=5)  # allow more time for slower servers
+            response_time = r.elapsed.total_seconds()
+            if response_time > 1.5:
+                status[name] = "🟡 Online (Slow)"
             else:
-                status[name] = "🟠 Error"
+                status[name] = "🟢 Online"
         except:
             status[name] = "🔴 Offline"
     return render_template("status.html", status=status)
-
 
 # -------------------------
 # Route 2: Simulation UI Page
@@ -38,54 +40,68 @@ def dashboard():
 def simulate_ui():
     return render_template("simulator.html")
 
-
 # -------------------------
-# Route 3: Simulate Requests via NGINX
+# Helper: Generate IP Pool
 # -------------------------
-
-
 def generate_ip_pool(total_requests, repeat_range=(2, 3)):
     ip_pool = []
     used_ips = []
-
     while len(ip_pool) < total_requests:
         ip = f"{random.randint(1, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}"
         repeat_count = random.randint(*repeat_range)
-
         for _ in range(repeat_count):
             if len(ip_pool) < total_requests:
                 ip_pool.append(ip)
             else:
                 break
-
         used_ips.append(ip)
-
     return ip_pool
 
+# -------------------------
+# Route 3: Simulate Requests via NGINX
+# -------------------------
 @app.route("/simulate", methods=["POST"])
 def simulate():
     count = int(request.json.get("count"))
-    results = []
-
-    # Generate IPs where each IP is repeated 2-3 times
+    results = [None] * count
+    server_count = defaultdict(int)
     fake_ips = generate_ip_pool(count, repeat_range=(2, 3))
 
-    for i, ip in enumerate(fake_ips):
+    def send_request(i, ip):
         headers = {'X-Forwarded-For': ip}
-
+        start = time.time()
         try:
-            r = requests.get("http://127.0.0.1:8080", headers=headers, timeout=1)
-            results.append({
-                "request": i + 1,
-                "response": f"{r.text} (From IP: {ip})"
-            })
+            r = requests.get("http://127.0.0.1:8080", headers=headers, timeout=5)
+            duration = round(time.time() - start, 2)
+            response = r.text
         except:
-            results.append({
-                "request": i + 1,
-                "response": f"Error or Server Offline (From IP: {ip})"
-            })
+            duration = round(time.time() - start, 2)
+            response = "Error or Server Offline"
 
-    return jsonify({"results": results})
+        # Count the server based on response text
+        if "Server 1" in response:
+            server_count["Server 1"] += 1
+        elif "Server 2" in response:
+            server_count["Server 2"] += 1
+        elif "Server 3" in response:
+            server_count["Server 3"] += 1
+
+        results[i] = {
+            "request": i + 1,
+            "response": f"{response} (IP: {ip}, Time: {duration}s)"
+        }
+
+    threads = []
+    for i in range(count):
+        t = Thread(target=send_request, args=(i, fake_ips[i]))
+        t.start()
+        threads.append(t)
+        time.sleep(0.05)
+
+    for t in threads:
+        t.join()
+
+    return jsonify({"results": results, "summary": dict(server_count)})
 
 # -------------------------
 # Route 4: Set Load Balancing Algorithm
@@ -95,9 +111,8 @@ def set_algorithm():
     data = request.get_json()
     algorithm = data.get("algorithm")
 
-    # Determine directive for NGINX upstream
     if algorithm == "round_robin":
-        directive = ""  # round robin is default
+        directive = ""
     elif algorithm == "least_conn":
         directive = "least_conn;"
     elif algorithm == "ip_hash":
@@ -105,8 +120,7 @@ def set_algorithm():
     else:
         return jsonify({"message": "Invalid algorithm"}), 400
 
-    # Generate updated nginx.conf
-    new_conf = new_conf = f"""
+    new_conf = f"""
 worker_processes  1;
 
 events {{
@@ -130,24 +144,21 @@ http {{
         location / {{
             set_real_ip_from 127.0.0.1;
             real_ip_header X-Forwarded-For;
-
             proxy_pass http://backend_servers;
         }}
     }}
 }}
 """
     try:
-        nginx_path = "/home/aadilraja/network-load-balancer/config/nginx.conf"  # <-- Replace YOUR_USERNAME
+        nginx_path = "/home/aadilraja/network-load-balancer/config/nginx.conf"
         with open(nginx_path, "w") as f:
             f.write(new_conf)
 
-        # Reload NGINX
         subprocess.run(["sudo", "nginx", "-s", "reload"])
         return jsonify({"message": f"Algorithm '{algorithm}' applied and NGINX reloaded ✅"})
 
     except Exception as e:
         return jsonify({"message": f"Error: {str(e)}"}), 500
-
 
 # -------------------------
 # Run the App

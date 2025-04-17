@@ -1,9 +1,13 @@
 from flask import Flask
+import random
+import time
 app = Flask(__name__)
 
-@app.route('/')
+@app.route("/")
 def index():
-    return "Hello from Server 1!"
+    delay = random.uniform(0.5, 0.7)  
+    time.sleep(delay)
+    return f"Hello from Server 1! (Delay: {delay:.2f}s)"
 
 if __name__ == "__main__":
     app.run(port=5001)
