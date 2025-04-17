@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, jsonify
 import requests
 import subprocess
+import random
+
 
 app = Flask(__name__)
 
@@ -40,20 +42,50 @@ def simulate_ui():
 # -------------------------
 # Route 3: Simulate Requests via NGINX
 # -------------------------
+
+
+def generate_ip_pool(total_requests, repeat_range=(2, 3)):
+    ip_pool = []
+    used_ips = []
+
+    while len(ip_pool) < total_requests:
+        ip = f"{random.randint(1, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}"
+        repeat_count = random.randint(*repeat_range)
+
+        for _ in range(repeat_count):
+            if len(ip_pool) < total_requests:
+                ip_pool.append(ip)
+            else:
+                break
+
+        used_ips.append(ip)
+
+    return ip_pool
+
 @app.route("/simulate", methods=["POST"])
 def simulate():
     count = int(request.json.get("count"))
     results = []
 
-    for i in range(count):
+    # Generate IPs where each IP is repeated 2-3 times
+    fake_ips = generate_ip_pool(count, repeat_range=(2, 3))
+
+    for i, ip in enumerate(fake_ips):
+        headers = {'X-Forwarded-For': ip}
+
         try:
-            r = requests.get("http://127.0.0.1:8080", timeout=1)
-            results.append({"request": i + 1, "response": r.text})
+            r = requests.get("http://127.0.0.1:8080", headers=headers, timeout=1)
+            results.append({
+                "request": i + 1,
+                "response": f"{r.text} (From IP: {ip})"
+            })
         except:
-            results.append({"request": i + 1, "response": "Error or Server Offline"})
+            results.append({
+                "request": i + 1,
+                "response": f"Error or Server Offline (From IP: {ip})"
+            })
 
     return jsonify({"results": results})
-
 
 # -------------------------
 # Route 4: Set Load Balancing Algorithm
@@ -74,7 +106,7 @@ def set_algorithm():
         return jsonify({"message": "Invalid algorithm"}), 400
 
     # Generate updated nginx.conf
-    new_conf = f"""
+    new_conf = new_conf = f"""
 worker_processes  1;
 
 events {{
@@ -82,6 +114,8 @@ events {{
 }}
 
 http {{
+    log_format hashlog '$remote_addr - $proxy_add_x_forwarded_for';
+
     upstream backend_servers {{
         {directive}
         server 127.0.0.1:5001;
@@ -94,14 +128,16 @@ http {{
         server_name localhost;
 
         location / {{
+            set_real_ip_from 127.0.0.1;
+            real_ip_header X-Forwarded-For;
+
             proxy_pass http://backend_servers;
         }}
     }}
 }}
 """
-
     try:
-        nginx_path = "/home/YOUR_USERNAME/network-load-balancer/configs/nginx.conf"  # <-- Replace YOUR_USERNAME
+        nginx_path = "/home/aadilraja/network-load-balancer/config/nginx.conf"  # <-- Replace YOUR_USERNAME
         with open(nginx_path, "w") as f:
             f.write(new_conf)
 
