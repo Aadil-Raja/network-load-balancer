@@ -3,12 +3,27 @@
 <head>
   <title>Load Balancer Simulator</title>
   <style>
-    body { font-family: Arial; margin: 40px; }
+    body { font-family: Arial, margin: 40px; background: #f7f7f7; }
+    h2, h3 { margin-bottom: 10px; }
     table, th, td { border: 1px solid black; border-collapse: collapse; padding: 8px; }
+    table { margin-top: 20px; background: white; }
+    label, select, input, button { margin: 10px 5px 10px 0; font-size: 16px; }
   </style>
 </head>
 <body>
-  <h2>Simulate Load Balancer Requests</h2>
+  <h2>⚙️ Load Balancer Configuration</h2>
+
+  <form onsubmit="applyAlgorithm(); return false;">
+    <label>Select Algorithm:</label>
+    <select id="algorithm">
+      <option value="round_robin">Round Robin</option>
+      <option value="least_conn">Least Connections</option>
+      <option value="ip_hash">IP Hash</option>
+    </select>
+    <button type="submit">Apply Algorithm</button>
+  </form>
+
+  <h2>📡 Simulate Load Balancer Requests</h2>
   <label>Number of Requests: </label>
   <input type="number" id="count" value="10" min="1" />
   <button onclick="startSimulation()">Send Requests</button>
@@ -36,6 +51,20 @@
           tr.innerHTML = `<td>${row.request}</td><td>${row.response}</td>`;
           table.appendChild(tr);
         });
+      });
+    }
+
+    function applyAlgorithm() {
+      const algo = document.getElementById("algorithm").value;
+
+      fetch('/set-algorithm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ algorithm: algo })
+      })
+      .then(res => res.json())
+      .then(data => {
+        alert(data.message);
       });
     }
   </script>
