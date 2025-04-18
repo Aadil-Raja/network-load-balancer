@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
-    delay = random.uniform(0.5, 0.7)  
+    delay = random.uniform(0.2, 0.5)  
     time.sleep(delay)
     return f"Hello from Server 1! (Delay: {delay:.2f}s)"
 

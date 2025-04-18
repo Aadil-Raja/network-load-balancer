@@ -4,7 +4,7 @@ import random
 app = Flask(__name__)
 @app.route("/")
 def index():
-    delay = random.uniform(0.5, 1)  
+    delay = random.uniform(0.2, 0.5)    
     time.sleep(delay)
     return f"Hello from Server 3! (Delay: {delay:.2f}s)"
 if __name__ == "__main__":
