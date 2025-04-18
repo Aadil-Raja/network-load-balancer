@@ -21,6 +21,13 @@
       <option value="least_conn">Least Connections</option>
       <option value="ip_hash">IP Hash</option>
     </select>
+
+    <label>Select Load Balancer:</label>
+    <select id="method">
+      <option value="nginx">NGINX</option>
+      <option value="haproxy">HAProxy</option>
+    </select>
+
     <button type="submit">Apply Algorithm</button>
   </form>
 
@@ -40,15 +47,15 @@
   <script>
     function startSimulation() {
       const count = document.getElementById("count").value;
-
+      const method = document.getElementById("method").value;
+      
       fetch('/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ count })
+        body: JSON.stringify({ count, method })
       })
       .then(res => res.json())
       .then(data => {
-        // Show results in table
         const table = document.getElementById("result-table");
         table.innerHTML = "<tr><th>Request #</th><th>Response</th></tr>";
         data.results.forEach(row => {
@@ -57,7 +64,6 @@
           table.appendChild(tr);
         });
 
-        // Show summary in list
         const summaryList = document.getElementById("summary-list");
         summaryList.innerHTML = "";
         for (const [server, count] of Object.entries(data.summary)) {
@@ -70,11 +76,12 @@
 
     function applyAlgorithm() {
       const algo = document.getElementById("algorithm").value;
+      const method = document.getElementById("method").value;
 
       fetch('/set-algorithm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ algorithm: algo })
+        body: JSON.stringify({ algorithm: algo, method })
       })
       .then(res => res.json())
       .then(data => {

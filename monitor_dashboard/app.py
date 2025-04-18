@@ -23,7 +23,7 @@ def dashboard():
     status = {}
     for name, url in servers.items():
         try:
-            r = requests.get(url, timeout=5)  # allow more time for slower servers
+            r = requests.get(url, timeout=5)
             response_time = r.elapsed.total_seconds()
             if response_time > 1.5:
                 status[name] = "🟡 Online (Slow)"
@@ -58,11 +58,15 @@ def generate_ip_pool(total_requests, repeat_range=(2, 3)):
     return ip_pool
 
 # -------------------------
-# Route 3: Simulate Requests via NGINX
+# Route 3: Simulate Requests via NGINX or HAProxy
 # -------------------------
 @app.route("/simulate", methods=["POST"])
 def simulate():
     count = int(request.json.get("count"))
+    method = request.json.get("method", "nginx")
+
+    url = "http://127.0.0.1:8080" if method == "nginx" else "http://127.0.0.1:8081"
+
     results = [None] * count
     server_count = defaultdict(int)
     fake_ips = generate_ip_pool(count, repeat_range=(2, 3))
@@ -71,14 +75,13 @@ def simulate():
         headers = {'X-Forwarded-For': ip}
         start = time.time()
         try:
-            r = requests.get("http://127.0.0.1:8080", headers=headers, timeout=5)
+            r = requests.get(url, headers=headers, timeout=6)
             duration = round(time.time() - start, 2)
             response = r.text
         except:
             duration = round(time.time() - start, 2)
             response = "Error or Server Offline"
 
-        # Count the server based on response text
         if "Server 1" in response:
             server_count["Server 1"] += 1
         elif "Server 2" in response:
@@ -104,13 +107,14 @@ def simulate():
     return jsonify({"results": results, "summary": dict(server_count)})
 
 # -------------------------
-# Route 4: Set Load Balancing Algorithm
+# Route 4: Set Load Balancing Algorithm for NGINX or HAProxy
 # -------------------------
 @app.route("/set-algorithm", methods=["POST"])
 def set_algorithm():
     data = request.get_json()
     algorithm = data.get("algorithm")
-
+    method = data.get("method", "nginx")
+    print(f"Setting{algorithm} for mehtod {method}")
     if algorithm == "round_robin":
         directive = ""
     elif algorithm == "least_conn":
@@ -120,7 +124,8 @@ def set_algorithm():
     else:
         return jsonify({"message": "Invalid algorithm"}), 400
 
-    new_conf = f"""
+    if method == "nginx":
+        new_conf = f"""
 worker_processes  1;
 
 events {{
@@ -149,16 +154,53 @@ http {{
     }}
 }}
 """
-    try:
-        nginx_path = "/home/aadilraja/network-load-balancer/config/nginx.conf"
-        with open(nginx_path, "w") as f:
-            f.write(new_conf)
+        try:
+            nginx_path = "/home/aadilraja/network-load-balancer/config/nginx.conf"
+            with open(nginx_path, "w") as f:
+                f.write(new_conf)
+            subprocess.run(["sudo", "nginx", "-s", "reload"])
+            return jsonify({"message": f"NGINX Algorithm '{algorithm}' applied ✅"})
+        except Exception as e:
+            return jsonify({"message": f"NGINX Error: {str(e)}"}), 500
 
-        subprocess.run(["sudo", "nginx", "-s", "reload"])
-        return jsonify({"message": f"Algorithm '{algorithm}' applied and NGINX reloaded ✅"})
+    elif method == "haproxy":
+        if algorithm == "ip_hash":
+            return jsonify({"message": "HAProxy does not support ip_hash directly"}), 400
 
-    except Exception as e:
-        return jsonify({"message": f"Error: {str(e)}"}), 500
+        # Map algorithm to HAProxy syntax
+        haproxy_algo = "roundrobin" if algorithm == "round_robin" else "leastconn"
+
+        haproxy_conf = f"""
+global
+    daemon
+    maxconn 256
+
+defaults
+    mode http
+    timeout connect 5000ms
+    timeout client 50000ms
+    timeout server 50000ms
+
+frontend http_front
+    bind *:8081
+    default_backend servers
+
+backend servers
+    balance {haproxy_algo}
+    server s1 127.0.0.1:5001 check
+    server s2 127.0.0.1:5002 check
+    server s3 127.0.0.1:5003 check
+"""
+        try:
+            haproxy_path = "/home/aadilraja/network-load-balancer/config/haproxy.cfg"
+            with open(haproxy_path, "w") as f:
+                f.write(haproxy_conf)
+            subprocess.run(["sudo", "haproxy", "-f", haproxy_path])
+            return jsonify({"message": f"HAProxy Algorithm '{algorithm}' applied ✅"})
+        except Exception as e:
+            return jsonify({"message": f"HAProxy Error: {str(e)}"}), 500
+    else:
+        return jsonify({"message": "Invalid load balancer method"}), 400
 
 # -------------------------
 # Run the App
