@@ -10,4 +10,4 @@ def index():
     return f"Hello from Server 1! (Delay: {delay:.2f}s)"
 
 if __name__ == "__main__":
-    app.run(port=5001)
+    app.run(port=5001,threaded=True)

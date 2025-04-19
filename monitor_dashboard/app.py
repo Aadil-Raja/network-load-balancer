@@ -1,3 +1,4 @@
+
 from flask import Flask, render_template, request, jsonify
 import requests
 import subprocess
@@ -159,7 +160,11 @@ http {{
 
     server {{
         listen 8088 proxy_protocol;
-        proxy_pass http://127.0.0.1:8081;
+
+        location / {{
+            proxy_pass http://127.0.0.1:8081;
+            proxy_set_header X-Forwarded-For $proxy_protocol_addr;
+        }}
     }}
 }}
 """

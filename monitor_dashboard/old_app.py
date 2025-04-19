@@ -75,7 +75,7 @@ def simulate():
         headers = {'X-Forwarded-For': ip}
         start = time.time()
         try:
-            r = requests.get(url, headers=headers, timeout=6)
+            r = requests.get(url, headers=headers, timeout=8)
             duration = round(time.time() - start, 2)
             response = r.text
         except:
@@ -99,7 +99,7 @@ def simulate():
         t = Thread(target=send_request, args=(i, fake_ips[i]))
         t.start()
         threads.append(t)
-        time.sleep(2)
+        time.sleep(0.05)
 
     for t in threads:
         t.join()
@@ -194,8 +194,9 @@ backend servers
     balance {haproxy_algo}
     hash-type consistent
     
-    server s1 127.0.0.1:5001 check
+    
     server s2 127.0.0.1:5002 check
+    server s1 127.0.0.1:5001 check
     server s3 127.0.0.1:5003 check
 """
         try:
