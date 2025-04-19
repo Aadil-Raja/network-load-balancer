@@ -109,6 +109,8 @@ def simulate():
 # -------------------------
 # Route 4: Set Load Balancing Algorithm for NGINX or HAProxy
 # -------------------------
+
+
 @app.route("/set-algorithm", methods=["POST"])
 def set_algorithm():
     data = request.get_json()
@@ -116,16 +118,25 @@ def set_algorithm():
     method = data.get("method", "nginx")
     print(f"Setting {algorithm} for method {method}")
 
+    # Map algorithms to directives
     if algorithm == "round_robin":
-        directive = ""
+        nginx_directive = ""
+        haproxy_balance = "static-rr"
     elif algorithm == "least_conn":
-        directive = "least_conn;"
+        nginx_directive = "least_conn;"
+        haproxy_balance = "leastconn"
     elif algorithm == "ip_hash":
-        directive = "ip_hash;"
+        nginx_directive = "ip_hash;"
+        haproxy_balance = "source"
     else:
         return jsonify({"message": "Invalid algorithm"}), 400
 
+    # --- NGINX branch ---
     if method == "nginx":
+        # 1) stop any running nginx
+        subprocess.run(["sudo", "nginx", "-s", "stop"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        # 2) build & write new config
         new_conf = f"""
 worker_processes  1;
 
@@ -137,7 +148,7 @@ http {{
     log_format hashlog '$remote_addr - $proxy_add_x_forwarded_for';
 
     upstream backend_servers {{
-        {directive}
+        {nginx_directive}
         server 127.0.0.1:5001;
         server 127.0.0.1:5002;
         server 127.0.0.1:5003;
@@ -155,26 +166,22 @@ http {{
     }}
 }}
 """
+        nginx_path = "/home/aadilraja/network-load-balancer/config/nginx.conf"
         try:
-            nginx_path = "/home/aadilraja/network-load-balancer/config/nginx.conf"
             with open(nginx_path, "w") as f:
                 f.write(new_conf)
-            subprocess.run(["sudo", "nginx", "-s", "reload"])
+            # 3) start nginx with the new config
+            subprocess.run(["sudo", "nginx", "-c", nginx_path], check=True)
             return jsonify({"message": f"NGINX Algorithm '{algorithm}' applied ✅"})
         except Exception as e:
-            return jsonify({"message": f"NGINX Error: {str(e)}"}), 500
+            return jsonify({"message": f"NGINX Error: {e}"}), 500
 
+    # --- HAProxy branch ---
     elif method == "haproxy":
-        # Map algorithm to HAProxy syntax
-        if algorithm == "round_robin":
-            haproxy_algo = "roundrobin"
-        elif algorithm == "least_conn":
-            haproxy_algo = "leastconn"
-        elif algorithm == "ip_hash":
-            haproxy_algo = "source"
-        else:
-            return jsonify({"message": "Invalid algorithm for HAProxy"}), 400
+        # 1) kill any running haproxy
+        subprocess.run(["sudo", "pkill", "haproxy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+        # 2) build & write new config
         haproxy_conf = f"""
 global
     daemon
@@ -191,25 +198,25 @@ frontend http_front
     default_backend servers
 
 backend servers
-    balance {haproxy_algo}
+    balance {haproxy_balance}
     hash-type consistent
-    
-    
-    server s2 127.0.0.1:5002 check
-    server s1 127.0.0.1:5001 check
-    server s3 127.0.0.1:5003 check
+
+    server s1 127.0.0.1:5001 check weight 1
+    server s2 127.0.0.1:5002 check weight 1
+    server s3 127.0.0.1:5003 check weight 1
 """
+        haproxy_path = "/home/aadilraja/network-load-balancer/config/haproxy.cfg"
         try:
-            haproxy_path = "/home/aadilraja/network-load-balancer/config/haproxy.cfg"
             with open(haproxy_path, "w") as f:
                 f.write(haproxy_conf)
-            subprocess.run(["sudo", "haproxy", "-f", haproxy_path])
+            # 3) start haproxy in daemon mode
+            subprocess.run(["sudo", "haproxy", "-f", haproxy_path, "-D"], check=True)
             return jsonify({"message": f"HAProxy Algorithm '{algorithm}' applied ✅"})
         except Exception as e:
-            return jsonify({"message": f"HAProxy Error: {str(e)}"}), 500
+            return jsonify({"message": f"HAProxy Error: {e}"}), 500
+
     else:
         return jsonify({"message": "Invalid load balancer method"}), 400
-
 # -------------------------
 # Run the App
 # -------------------------
