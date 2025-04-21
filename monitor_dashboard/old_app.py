@@ -5,9 +5,10 @@ import random
 import time
 from threading import Thread
 from collections import defaultdict
+from flask_cors import CORS
 
 app = Flask(__name__)
-
+CORS(app)
 # Define your backend server endpoints
 servers = {
     'Server 1': 'http://127.0.0.1:5001',
