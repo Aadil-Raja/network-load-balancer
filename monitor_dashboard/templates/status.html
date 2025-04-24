@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Server Status Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f8f9fa;
+      padding: 40px;
+    }
+    h2 {
+      color: #333;
+    }
+    .status-container {
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 400px;
+    }
+    ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    li {
+      padding: 10px;
+      font-size: 18px;
+      border-bottom: 1px solid #eee;
+    }
+  </style>
+</head>
+<body>
+  <h2>🖥️ Backend Server Status</h2>
+  <div class="status-container">
+    <ul>
+      {% for name, stat in status.items() %}
+        <li><strong>{{ name }}</strong>: {{ stat }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</body>
+</html>
